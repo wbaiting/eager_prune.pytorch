@@ -1,8 +1,8 @@
-from util import accuracy, AverageMeter, DataPrefetcher, get_logger, seed_torch, warm_up_lr
-from config import Config
+from utils.util import accuracy, AverageMeter, DataPrefetcher, get_logger, seed_torch, warm_up_lr, get_config_file
+from utils.select_model import get_network
+from utils.select_dataset import get_dataset
 from eager_pruner import EagerPruner
 from parsers import parse_args
-from models.lenet import LeNet
 
 import torch
 import os
@@ -26,22 +26,22 @@ def train(train_loader, model, criterion, optimizer, scheduler, pruner, epoch, l
 
     iters = len(train_loader)
     prefetcher = DataPrefetcher(train_loader)
+    #prefetcher = iter(train_loader)
     inputs, labels = prefetcher.next()
     iter_index = 1
     while inputs is not None:
-        if epoch <= 1:
-            warm_up_lr(optimizer, epoch, iter_index, 1, iters, args.lr)
+        if epoch <= args.warmup_epoch:
+            warm_up_lr(optimizer, epoch, iter_index, args.warmup_epoch, iters, args.lr)
         inputs, labels = inputs.cuda(), labels.cuda()
 
         outputs = model(inputs)
         loss = criterion(outputs, labels)
-        loss = loss / args.accumulation_steps
+        loss = loss
 
         loss.backward()
 
-        if iter_index % args.accumulation_steps == 0:
-            optimizer.step()
-            optimizer.zero_grad()
+        optimizer.step()
+        optimizer.zero_grad()
 
         #剪枝
         if args.use_prune:
@@ -79,13 +79,13 @@ def train(train_loader, model, criterion, optimizer, scheduler, pruner, epoch, l
         top5.update(acc5.item(), inputs.size(0))
         losses.update(loss.item(), inputs.size(0))
 
-        inputs, labels = prefetcher.next()
 
         if iter_index % args.print_interval == 0:
             logger.info(
                 f"train: epoch {epoch:0>3d}, iter [{iter_index:0>4d}, {iters:0>4d}], lr: {optimizer.param_groups[0]['lr']:.6f}, top1 acc: {acc1.item():.2f}%, top5 acc: {acc5.item():.2f}%, loss_total: {loss.item():.2f}"
             )
 
+        inputs, labels = prefetcher.next()
         iter_index += 1
 
     scheduler.step()
@@ -122,12 +122,13 @@ def validate(val_loader, model, args):
 def main(logger, args):
     if not torch.cuda.is_available():
         raise Exception("need gpu to train network!")
+    os.environ["CUDA_VISIBLE_DEVICES"] = ','.join([str(g) for g in args.gpus])
+    print(os.environ["CUDA_VISIBLE_DEVICES"])
 
     if args.seed is not None:
         seed_torch(args.seed)
 
-    gpus = torch.cuda.device_count()
-    logger.info(f'use {gpus} gpus')
+    logger.info(f'use {args.gpus} gpu')
     logger.info(f"args: {args}")
 
     cudnn.benchmark = True
@@ -136,28 +137,23 @@ def main(logger, args):
 
     # dataset and dataloader
     logger.info('start loading data')
-    train_loader = DataLoader(Config.train_dataset,
+    train_dataset, val_dataset = get_dataset(args)
+    train_loader = DataLoader(train_dataset,
                               batch_size=args.batch_size,
                               shuffle=True,
                               pin_memory=True,
                               num_workers=args.num_workers)
-    val_loader = DataLoader(Config.val_dataset,
+    val_loader = DataLoader(val_dataset,
                             batch_size=args.batch_size,
                             shuffle=False,
                             pin_memory=True,
                             num_workers=args.num_workers)
     logger.info('finish loading data')
 
-    logger.info(f"creating model '{args.network}'")
-    if args.network == 'lenet5':
-        model = LeNet()
-    else:
-        model = models.__dict__[args.network](**{
-            "pretrained": args.pretrained,
-            "num_classes": args.num_classes,
-        })
+    logger.info(f"creating model '{args.net}'")
+    model = get_network(args)
 
-    if args.network == 'lenet5':
+    if args.dataset == 'mnist':
         flops_input = torch.randn(1, 1, args.input_image_size,
                               args.input_image_size)
     else:
@@ -165,12 +161,13 @@ def main(logger, args):
                               args.input_image_size)
     flops, params = profile(model, inputs=(flops_input, ))
     flops, params = clever_format([flops, params], "%.3f")
-    logger.info(f"model: '{args.network}', flops: {flops}, params: {params}")
+    logger.info(f"model: '{args.net}', flops: {flops}, params: {params}")
 
-    print(model)
     for name, param in model.named_parameters():
         logger.info(f"{name},{param.requires_grad}")
 
+    #model = model.to(f'cuda:{args.gpus[0]}')
+    #criterion = nn.CrossEntropyLoss().to(f'cuda:{args.gpus[0]}')
     model = model.cuda()
     criterion = nn.CrossEntropyLoss().cuda()
     optimizer = torch.optim.SGD(model.parameters(),
@@ -179,8 +176,9 @@ def main(logger, args):
                                 weight_decay=args.weight_decay)
 
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=args.milestones, gamma=0.2)
+        optimizer, milestones=args.milestones, gamma=args.gamma)
     
+    #model = nn.DataParallel(model, device_ids=args.gpus)
     model = nn.DataParallel(model)
     
     if args.use_prune:
@@ -191,7 +189,6 @@ def main(logger, args):
                             prune_fail_times=args.prune_fail_times)
         logger.info(
                 f"all weights in conv layers {pruner.all_weights_num:d}")
-        print('all_weights_num:', pruner.all_weights_num)
     else:
         pruner = None
 
@@ -247,7 +244,7 @@ def main(logger, args):
                 'epoch': epoch,
                 'acc1': acc1,
                 'loss': losses,
-                'n': scheduler.get_last_lr()[0],
+                'lr': optimizer.param_groups[0]['lr'],
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'scheduler_state_dict': scheduler.state_dict(),
@@ -272,5 +269,9 @@ def main(logger, args):
 
 if __name__ == '__main__':
     args = parse_args()
+    os.environ["CUDA_VISIBLE_DEVICES"] = ','.join([str(g) for g in args.gpus])
+    print(args.__dict__)
+    get_config_file(args)
+    print(args.__dict__)
     logger = get_logger(__name__, args.log)
     main(logger, args)

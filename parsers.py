@@ -1,4 +1,3 @@
-from config import Config
 import argparse
 
 
@@ -7,102 +6,116 @@ def boolean_string(s):
         raise ValueError('Not a valid boolean string')
     return s == 'True'
 
+def get_list(s):
+    return [int(t) for t in s.strip().split(',')]
+
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-    parser.add_argument('--network',
+    parser.add_argument('--net',
                         type=str,
-                        default=Config.network,
-                        help='name of network')
+                        default='resnet50',
+                        help='name of net')
+    parser.add_argument('--gpus',
+                        type=get_list,
+                        default=(0,),
+                        help='gpuid used in the training, e.g. --gpus=0,1,2')
     parser.add_argument('--lr',
                         type=float,
-                        default=Config.lr,
+                        default=0.1,
                         help='learning rate')
     parser.add_argument('--momentum',
                         type=float,
-                        default=Config.momentum,
+                        default=0.9,
                         help='momentum')
     parser.add_argument('--weight_decay',
                         type=float,
-                        default=Config.weight_decay,
+                        default=5e-4,
                         help='weight decay')
+    parser.add_argument('--gamma',
+                        type=float,
+                        default=0.2,
+                        help='gamma of lr_schedule')
+    parser.add_argument('--warmup_epoch',
+                        type=int,
+                        default=1,
+                        help='warmup epoch')
     parser.add_argument('--epochs',
                         type=int,
-                        default=Config.epochs,
+                        default=100,
                         help='num of training epochs')
     parser.add_argument('--batch_size',
                         type=int,
-                        default=Config.batch_size,
+                        default=256,
                         help='batch size')
     parser.add_argument('--milestones',
                         type=list,
-                        default=Config.milestones,
+                        default=[30, 60, 90],
                         help='optimizer milestones')
-    parser.add_argument('--accumulation_steps',
-                        type=int,
-                        default=Config.accumulation_steps,
-                        help='gradient accumulation steps')
     parser.add_argument('--pretrained',
                         type=boolean_string,
-                        default=Config.pretrained,
+                        default=False,
                         help='load pretrained model params or not')
     parser.add_argument('--num_classes',
                         type=int,
-                        default=Config.num_classes,
+                        default=1000,
                         help='model classification num')
     parser.add_argument('--input_image_size',
                         type=int,
-                        default=Config.input_image_size,
+                        default=224,
                         help='input image size')
     parser.add_argument('--num_workers',
                         type=int,
-                        default=Config.num_workers,
+                        default=8,
                         help='number of worker to load data')
     parser.add_argument('--resume',
                         type=str,
-                        default=Config.resume,
+                        default=False,
                         help='put the path to resuming file if needed')
     parser.add_argument('--checkpoints',
                         type=str,
-                        default=Config.checkpoint_path,
+                        default=None,
                         help='path for saving trained models')
     parser.add_argument('--log',
                         type=str,
-                        default=Config.log,
+                        default=None,
                         help='path to save log')
     parser.add_argument('--evaluate',
-                        type=str,
-                        default=Config.evaluate,
+                        type=boolean_string,
+                        default=False,
                         help='path for evaluate model')
-    parser.add_argument('--seed', type=int, default=Config.seed, help='seed')
+    parser.add_argument('--seed', type=int, default=2019211353, help='seed')
     parser.add_argument('--print_interval',
                         type=bool,
-                        default=Config.print_interval,
-                        help='print interval')
-#     parser.add_argument('--apex',
-#                         type=bool,
-#                         default=Config.apex,
-#                         help='use apex or not')
-    
+                        default=100,
+                        help='print interval')    
     parser.add_argument('--use_prune',
                        type=boolean_string,
-                       default=Config.use_prune,
+                       default=True,
                        help='use eager_pruning or not')
     parser.add_argument('--prune_interval',
                        type=int,
-                       default=Config.prune_interval,
+                       default=1000,
                        help='prune_interval')
     parser.add_argument('--prune_num',
                        type=int,
-                       default=Config.prune_num,
+                       default=888,
                        help='prune_num')
     parser.add_argument('--over_prune_threshold',
                        type=int,
-                       default=Config.over_prune_threshold,
+                       default=20,
                        help='over_prune_threshold')
     parser.add_argument('--prune_fail_times',
                        type=int,
-                       default=Config.prune_fail_times,
+                       default=3,
                        help='prune_fail_times')
+    parser.add_argument('--dataset',
+                        type=str,
+                        default=None,
+                        help='name of dataset')
+    parser.add_argument('--config_path',
+                        type=str,
+                        default=None,
+                        help='path to config')
 
     return parser.parse_args()
 
