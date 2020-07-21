@@ -26,3 +26,5 @@ class LeNet(nn.Module):
         x = self.fc3(x)
         return x
     
+def lenet(pretrained=False, progress=True, **kwargs):
+    return LeNet()

@@ -1,0 +1,5 @@
+pretrained_models_path='/home/wangb/pretrained_models'
+ILSVRC2012_PATH='/home/wangb/data/imagenet2012'
+MNIST_PATH='/home/wangb/data/mnist'
+CIFAR10_PATH='/home/wangb/data/cifar10'
+CIFAR100_PATH='/home/wangb/data/cifar100'

@@ -1,0 +1,31 @@
+{
+    "net": "resnet18",
+    "lr": 0.1,
+    "momentum": 0.9,
+    "weight_decay": 0.0005,
+    "gamma": 0.2,
+    "epochs": 200,
+    "batch_size": 128,
+    "milestones": [
+        60,
+        120,
+        160
+    ],
+    "pretrained": false,
+    "num_classes": 100,
+    "input_image_size": 32,
+    "num_workers": 2,
+    "resume": "false",
+    "checkpoints": "./checkpoints/resnet18_cifar100_y",
+    "log": "./log/resnet18_cifar100_y",
+    "evaluate": false,
+    "seed": 2019211353,
+    "print_interval": 100,
+    "use_prune": true,
+    "prune_interval": 782,
+    "prune_num": 178670,
+    "over_prune_threshold": 20,
+    "prune_fail_times": 3,
+    "dataset": "cifar100",
+    "warmup_epoch":0
+}

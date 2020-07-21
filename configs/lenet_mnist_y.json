@@ -1,0 +1,30 @@
+{
+    "net": "lenet",
+    "lr": 0.1,
+    "momentum": 0.9,
+    "weight_decay": 0.0001,
+    "gamma": 0.2,
+    "epochs": 11,
+    "batch_size": 64,
+    "milestones": [
+        6,
+        9
+    ],
+    "pretrained": false,
+    "num_classes": 10,
+    "input_image_size": 32,
+    "num_workers": 2,
+    "resume": "false",
+    "checkpoints": "./checkpoints/lenet_mnist_y",
+    "log": "./log/lenet_mnist_y",
+    "evaluate": false,
+    "seed": 2019211353,
+    "print_interval": 100,
+    "use_prune": true,
+    "prune_interval": 200,
+    "prune_num": 808,
+    "over_prune_threshold": 10,
+    "prune_fail_times": 3,
+    "dataset": "mnist",
+    "warmup_epoch":0
+}
