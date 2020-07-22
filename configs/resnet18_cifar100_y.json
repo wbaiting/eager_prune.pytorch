@@ -23,9 +23,9 @@
     "print_interval": 100,
     "use_prune": true,
     "prune_interval": 782,
-    "prune_num": 178670,
+    "prune_num": 223337,
     "over_prune_threshold": 20,
     "prune_fail_times": 3,
     "dataset": "cifar100",
-    "warmup_epoch":0
+    "warmup_epoch":2
 }

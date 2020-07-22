@@ -51,7 +51,7 @@ class EagerPruner(object):
         self.curr_prune_loss_max = 0
         self.curr_exceed_times = 0
         self.curr_idx = 0
-        self.thres_idx_for_loss = min(500, int(self.prune_interval * 0.40))
+        self.thres_idx_for_loss = min(600, int(self.prune_interval * 0.40))
 
 
         '''

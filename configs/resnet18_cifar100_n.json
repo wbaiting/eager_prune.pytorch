@@ -27,5 +27,5 @@
     "over_prune_threshold": 20,
     "prune_fail_times": 3,
     "dataset": "cifar100",
-    "warmup_epoch":0
+    "warmup_epoch":2
 }

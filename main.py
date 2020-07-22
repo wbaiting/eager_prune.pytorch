@@ -254,7 +254,7 @@ def main(logger, args):
                 model.module.state_dict(),
                 os.path.join(
                     args.checkpoints,
-                    "{}-epoch{}-acc{}.pth".format(args.network, epoch, acc1)))
+                    "{}-epoch{}-acc{}.pth".format(args.net, epoch, acc1)))
 
     training_time = (time.time() - start_time) / 3600
     logger.info(
