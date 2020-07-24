@@ -1,11 +1,22 @@
-# import os
+import os
 import sys
+import torch
+from torchvision import models
 
-# BASE_DIR = os.path.dirname(
-#     os.path.dirname(os.path.dirname(os.path.dirname(
-#         os.path.abspath(__file__)))))
-# sys.path.append(BASE_DIR)
-# from public.path import pretrained_models_path
+BASE_DIR = os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))
+sys.path.append(BASE_DIR)
+from public.path import pretrained_models_path
+
+
+model_urls = {
+    'resnet18':
+    '{}/resnet/resnet18-5c106cde.pth'.format(pretrained_models_path),
+    
+    'mobilenetv2':
+    '{}/mobilenetv2/mobilenet_v2-b0353104.pth'.format(
+        pretrained_models_path)
+}
 
 
 def get_network(args):
@@ -15,59 +26,20 @@ def get_network(args):
     if args.net == 'lenet':
         from models.lenet import lenet
         net = lenet()
-    elif args.net == 'densenet121':
-        from models.densenet import densenet121
-        net = densenet121(pretrained=args.pretrained, num_classes=args.num_classes)
-    elif args.net == 'densenet161':
-        from models.densenet import densenet161
-        net = densenet161(pretrained=args.pretrained, num_classes=args.num_classes)
-    elif args.net == 'densenet169':
-        from models.densenet import densenet169
-        net = densenet169(pretrained=args.pretrained, num_classes=args.num_classes)
-    elif args.net == 'densenet201':
-        from models.densenet import densenet201
-        net = densenet201(pretrained=args.pretrained, num_classes=args.num_classes)
     elif args.net == 'resnet18':
-        from models.resnet import resnet18
+        net = models.resnet18(num_classes=args.num_classes)
         if 'cifar' in args.dataset or 'mnist' in args.dataset:
-            first_conv_3_3 = True
-        else:
-            first_conv_3_3 = False
-        net = resnet18(pretrained=args.pretrained, num_classes=args.num_classes, first_conv_3_3=first_conv_3_3)
-    elif args.net == 'resnet34':
-        from models.resnet import resnet34
-        if 'cifar' in args.dataset or 'mnist' in args.dataset:
-            first_conv_3_3 = True
-        else:
-            first_conv_3_3 = False
-        net = resnet34(pretrained=args.pretrained, num_classes=args.num_classes, first_conv_3_3=first_conv_3_3)
-    elif args.net == 'resnet50':
-        from models.resnet import resnet50
-        if 'cifar' in args.dataset or 'mnist' in args.dataset:
-            first_conv_3_3 = True
-        else:
-            first_conv_3_3 = False
-        net = resnet50(pretrained=args.pretrained, num_classes=args.num_classes, first_conv_3_3=first_conv_3_3)
-    elif args.net == 'resnet101':
-        from models.resnet import resnet101
-        if 'cifar' in args.dataset or 'mnist' in args.dataset:
-            first_conv_3_3 = True
-        else:
-            first_conv_3_3 = False
-        net = resnet101(pretrained=args.pretrained, num_classes=args.num_classes, first_conv_3_3=first_conv_3_3)
-    elif args.net == 'resnet152':
-        from models.resnet import resnet152
-        if 'cifar' in args.dataset or 'mnist' in args.dataset:
-            first_conv_3_3 = True
-        else:
-            first_conv_3_3 = False
-        net = resnet152(pretrained=args.pretrained, num_classes=args.num_classes, first_conv_3_3=first_conv_3_3)
-    elif args.net == 'mobilenet':
-        from models.mobilenet import mobilenet
-        net = mobilenet()
-
+            net.conv1 = nn.Conv2d(3, net.inplanes, kernel_size=3, stride=1, padding=1, bias=False)
+            net.bn1 = nn.BatchNorm2d(net.inplanes)
+            net.relu = nn.ReLU(inplace=True)
+            net.maxpool = nn.Identity()
+    elif args.net == 'mobilenetv2':
+        net = models.mobilenet_v2(num_classes=args.num_classes)
     else:
         print('the network name you have entered is not supported yet')
         sys.exit()
 
+    if args.pretrained == True:
+        net.load_state_dict(
+                torch.load(model_urls[args.net]))
     return net

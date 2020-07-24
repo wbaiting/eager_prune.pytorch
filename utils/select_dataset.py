@@ -1,12 +1,10 @@
 import os
 import sys
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__)))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
-from configs.path import ILSVRC2012_PATH, MNIST_PATH, CIFAR10_PATH, CIFAR100_PATH
-
+print(BASE_DIR)
+from configs.path import ILSVRC2012_PATH, MNIST_PATH, CIFAR10_PATH, CIFAR100_PATH, IMAGENET_32_NOISE_PATH, IMAGENET_32_NOISE_PATH_2
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
@@ -77,6 +75,52 @@ def get_dataset(args):
         scale = 256 / 224
         train_dataset_path = os.path.join(ILSVRC2012_path, 'train')
         val_dataset_path = os.path.join(ILSVRC2012_path, 'val')
+        train_dataset = datasets.ImageFolder(
+            train_dataset_path,
+            transforms.Compose([
+                transforms.RandomResizedCrop(input_image_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225]),
+            ]))
+        val_dataset = datasets.ImageFolder(
+            val_dataset_path,
+            transforms.Compose([
+                transforms.Resize(int(input_image_size * scale)),
+                transforms.CenterCrop(input_image_size),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225]),
+            ]))
+    elif args.dataset == 'imagenet_32_noise':
+        input_image_size = 224
+        scale = 256 / 224
+        train_dataset_path = os.path.join(IMAGENET_32_NOISE_PATH, 'train')
+        val_dataset_path = os.path.join(IMAGENET_32_NOISE_PATH, 'val')
+        train_dataset = datasets.ImageFolder(
+            train_dataset_path,
+            transforms.Compose([
+                transforms.RandomResizedCrop(input_image_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225]),
+            ]))
+        val_dataset = datasets.ImageFolder(
+            val_dataset_path,
+            transforms.Compose([
+                transforms.Resize(int(input_image_size * scale)),
+                transforms.CenterCrop(input_image_size),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225]),
+            ]))
+    elif args.dataset == 'imagenet_32_noise_2':
+        input_image_size = 224
+        scale = 256 / 224
+        train_dataset_path = os.path.join(IMAGENET_32_NOISE_PATH_2, 'train')
+        val_dataset_path = os.path.join(IMAGENET_32_NOISE_PATH_2, 'val')
         train_dataset = datasets.ImageFolder(
             train_dataset_path,
             transforms.Compose([

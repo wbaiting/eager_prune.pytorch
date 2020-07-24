@@ -12,7 +12,12 @@ class EagerPruner(object):
                  prune_num=20000, 
                  over_prune_threshold=20, 
                  prune_fail_times=3,
-                 max_prune_rate=0.85):
+                 max_prune_rate=0.85,
+                 beishu=1,
+                 force_flag=False,
+                 min_prune_rate=0.5,
+                 check_beishu=0.4,
+                 max_beishu=0.75):
         self.model = model
         self.finish_flag = False
 
@@ -22,6 +27,12 @@ class EagerPruner(object):
         self.over_prune_threshold = over_prune_threshold
         self.prune_fail_times = prune_fail_times
         self.max_prune_rate = max_prune_rate
+
+        self.beishu = beishu
+        self.force_flag=force_flag
+        self.min_prune_rate=min_prune_rate
+        self.check_beishu = check_beishu
+        self.max_beishu = max_beishu
 
         ''' 
         辅助判断是否到了剪枝的时刻
@@ -51,7 +62,8 @@ class EagerPruner(object):
         self.curr_prune_loss_max = 0
         self.curr_exceed_times = 0
         self.curr_idx = 0
-        self.thres_idx_for_loss = min(600, int(self.prune_interval * 0.40))
+        self.thres_idx_for_loss = min(600, int(self.prune_interval * self.check_beishu))
+        
 
 
         '''
@@ -65,11 +77,11 @@ class EagerPruner(object):
 
 
         '''
-        current_num记录当前已裁剪的权重总数
+        curr_num记录当前已裁剪的权重总数
         记录所有需要裁减的权重的总数，每个要裁减的层的size
         为每个层创建mask矩阵
         '''
-        self.current_num = 0
+        self.curr_num = 0
         self.all_weights_num = 0
         self.layer_size_list = []
         self.mask_list = []
@@ -90,12 +102,12 @@ class EagerPruner(object):
         
         
     def get_prune_rate(self):
-        overall_rate = self.current_num / self.all_weights_num
+        overall_rate = self.curr_num / self.all_weights_num
         layers_rate = [torch.mean((self.mask_list[i] == 0).float()).item() for i in range(len(self.mask_list))]
         return overall_rate, layers_rate
         
     def set_zero_by_mask(self):
-        if self.current_num == 0:
+        if self.curr_num == 0:
             return
         i = 0
         with torch.no_grad():
@@ -110,8 +122,15 @@ class EagerPruner(object):
     
     def backup_and_prune(self, curr_epoch, curr_iter):
         # 如果此次裁减后要超过了一定的比率，就不再进行裁减
-        num_need_sort = self.current_num + self.prune_num
-        if num_need_sort > int(self.all_weights_num * self.max_prune_rate) or curr_epoch >= int(self.epoch_num * 0.75):
+        if self.force_flag and \
+           curr_epoch <= int(self.epoch_num * 0.55) and \
+           curr_epoch >= int(self.epoch_num * 0.40) and \
+           self.curr_num < int(self.all_weights_num * self.min_prune_rate):
+            remain_num = self.all_weights_num * self.max_prune_rate - self.curr_num
+            remain_iters = (self.epoch_num - curr_epoch) * self.each_epoch_iters - curr_iter
+            self.prune_num = int(remain_num * self.prune_interval / remain_iters)
+        num_need_sort = self.curr_num + self.prune_num
+        if num_need_sort > int(self.all_weights_num * self.max_prune_rate) or curr_epoch >= int(self.epoch_num * self.max_beishu):
             self.finish_flag=True
             return
         all_weights_flatten = []
@@ -129,7 +148,7 @@ class EagerPruner(object):
 
             all_weights_flatten = np.abs(torch.cat(all_weights_flatten).cpu().numpy())
             old_mask_flatten = torch.cat(old_mask_flatten).cpu().numpy()
-            assert np.sum(old_mask_flatten == 0) == self.current_num
+            assert np.sum(old_mask_flatten == 0) == self.curr_num
             all_weights_flatten[old_mask_flatten == 0] = -1.0
             smallest_idx = np.argpartition(all_weights_flatten, num_need_sort - 1)[:num_need_sort]
             mask_flatten[smallest_idx] = 0
@@ -154,7 +173,7 @@ class EagerPruner(object):
 
         # 滑动窗口是否要清零待定,先考虑不清零
         # self.window_list = [0] * self.window_size
-        self.current_num = num_need_sort
+        self.curr_num = num_need_sort
         self.roll_back_flag = False
         return 
     
@@ -167,7 +186,7 @@ class EagerPruner(object):
             smoothed_loss = np.mean(np.array(self.window_list))
             if smoothed_loss > self.curr_prune_loss_max:
                 self.curr_prune_loss_max = smoothed_loss
-            if smoothed_loss > self.last_prune_loss_max:
+            if smoothed_loss > self.last_prune_loss_max * self.beishu:
                 self.curr_exceed_times += 1
                 return True
         self.curr_idx += 1
@@ -184,13 +203,18 @@ class EagerPruner(object):
                     layer.weight.data = self.backup_weight_list[i]
                     self.mask_list[i] = self.backup_mask_list[i]
                     i += 1
-        self.current_num  -= self.prune_num
+        self.curr_num  -= self.prune_num
         self.roll_back_flag = True
         self.curr_exceed_times = 0
         self.curr_fail_times += 1
         self.curr_idx = 0
         self.last_prune_loss_max = float('inf')
         self.curr_prune_loss_max = 0
+
+        if self.force_flag:
+            self.over_prune_threshold = int(self.over_prune_threshold * 1.25)
+            over_prune_max = int(0.75*(self.prune_interval * self.check_beishu))
+            self.over_prune_threshold = min(self.over_prune_threshold, over_prune_max)
         
         self.last_rb_iter = curr_epoch * self.each_epoch_iters + curr_iter
         

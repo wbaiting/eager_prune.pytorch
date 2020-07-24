@@ -13,7 +13,9 @@ import torch.nn as nn
 from torchvision import models
 
 from thop import profile, clever_format
-
+import numpy as np
+trainloss_list=100* np.ones(16400)
+loss_idx=0
 
 def train(train_loader, model, criterion, optimizer, scheduler, pruner, epoch, logger,
           args):
@@ -45,7 +47,6 @@ def train(train_loader, model, criterion, optimizer, scheduler, pruner, epoch, l
 
         #剪枝
         if args.use_prune:
-            pruner.set_zero_by_mask()
             if pruner.finish_flag == False:
                 if pruner.loss_increase_check(loss.item()):
                     if pruner.roll_back_check():
@@ -58,7 +59,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, pruner, epoch, l
                                     f"train: epoch {epoch:0>3d}, iter [{iter_index:0>4d}, {iters:0>4d}],{pruner.curr_fail_times:d} times failed, prune finished ")
                         else:
                             pruner.prune_num  = int(pruner.prune_num / 2)
-                            if pruner.prune_num == 0:
+                            if pruner.prune_num == 0 and pruner.curr_num > pruner.all_weights_num * pruner.min_prune_rate:
                                 pruner.finish_flag = True
                                 logger.info(
                                 f"train: epoch {epoch:0>3d}, iter [{iter_index:0>4d}, {iters:0>4d}], prune finished")
@@ -68,9 +69,10 @@ def train(train_loader, model, criterion, optimizer, scheduler, pruner, epoch, l
                     pruner.backup_and_prune(epoch - 1, iter_index - 1)
                     overall_rate, layers_rate = pruner.get_prune_rate()
                     logger.info(
-                    f"train: epoch {epoch:0>3d}, iter [{iter_index:0>4d}, {iters:0>4d}],finish prune, prune_num {pruner.prune_num:d},prune_rate {pruner.current_num/pruner.all_weights_num}，max_smoothed_loss {pruner.last_prune_loss_max:f}")
+                    f"train: epoch {epoch:0>3d}, iter [{iter_index:0>4d}, {iters:0>4d}],finish prune, prune_num {pruner.prune_num:d},prune_rate {pruner.curr_num/pruner.all_weights_num}，max_smoothed_loss {pruner.last_prune_loss_max:f}")
                     for i, rate in enumerate(layers_rate):
                         logger.info(f"layer {i:0>4d}, rate {rate:.3f}")
+            pruner.set_zero_by_mask()
             optimizer.zero_grad()
         
         # measure accuracy and record loss
@@ -78,6 +80,10 @@ def train(train_loader, model, criterion, optimizer, scheduler, pruner, epoch, l
         top1.update(acc1.item(), inputs.size(0))
         top5.update(acc5.item(), inputs.size(0))
         losses.update(loss.item(), inputs.size(0))
+        if args.use_prune==False:
+            global trainloss_list, loss_idx
+            trainloss_list[loss_idx] = loss.item()
+            loss_idx += 1
 
 
         if iter_index % args.print_interval == 0:
@@ -186,7 +192,13 @@ def main(logger, args):
                             prune_interval=args.prune_interval,
                             prune_num=args.prune_num,
                             over_prune_threshold=args.over_prune_threshold,
-                            prune_fail_times=args.prune_fail_times)
+                            prune_fail_times=args.prune_fail_times,
+                            max_prune_rate=args.max_prune_rate,
+                            beishu=args.beishu,
+                            force_flag=args.force_flag,
+                            min_prune_rate=args.min_prune_rate,
+                            check_beishu=args.check_beishu,
+                            max_beishu=args.max_beishu)
         logger.info(
                 f"all weights in conv layers {pruner.all_weights_num:d}")
     else:
@@ -198,12 +210,14 @@ def main(logger, args):
                 f"{args.resume} is not a file, please check it again")
         logger.info('start only evaluating')
         logger.info(f"start resuming model from {args.evaluate}")
-        checkpoint = torch.load(args.evaluate,
-                                map_location=torch.device('cpu'))
-        model.load_state_dict(checkpoint['model_state_dict'])
+        #checkpoint = torch.load(args.evaluate,
+        #                        map_location=torch.device('cpu'))
+        #model.load_state_dict(checkpoint['model_state_dict'])
         acc1, acc5, throughput = validate(val_loader, model, args)
         logger.info(
-            f"epoch {checkpoint['epoch']:0>3d}, top1 acc: {acc1:.2f}%, top5 acc: {acc5:.2f}%, throughput: {throughput:.2f}sample/s"
+            f" top1 acc: {acc1:.2f}%, top5 acc: {acc5:.2f}%, throughput: {throughput:.2f}sample/s"
+        #logger.info(
+        #    f"epoch {checkpoint['epoch']:0>3d}, top1 acc: {acc1:.2f}%, top5 acc: {acc5:.2f}%, throughput: {throughput:.2f}sample/s"
         )
 
         return
@@ -266,6 +280,13 @@ def main(logger, args):
             f"finish training, total prune rate: {overall_rate:.3f}")
         for i, rate in enumerate(layers_rate):
             logger.info(f"layer {i:0>4d}, rate {rate:.3f}")
+    else:
+        import pandas as pd
+        import numpy as np
+        global trainloss_list
+        loss_np = np.array(trainloss_list).reshape((-1, 1))
+        df = pd.DataFrame(loss_np)
+        df.to_csv("loss.csv", index=False)
 
 if __name__ == '__main__':
     args = parse_args()

@@ -108,6 +108,30 @@ def parse_args():
                        type=int,
                        default=3,
                        help='prune_fail_times')
+    parser.add_argument('--beishu',
+                       type=float,
+                       default=1.0,
+                       help='beishu of max_loss')
+    parser.add_argument('--force_flag',
+                       type=boolean_string,
+                       default=False,
+                       help='force flag')
+    parser.add_argument('--max_prune_rate',
+                       type=float,
+                       default=0.8,
+                       help='max prune rate')
+    parser.add_argument('--min_prune_rate',
+                       type=float,
+                       default=0.5,
+                       help='min prune_rate')
+    parser.add_argument('--check_beishu',
+                       type=float,
+                       default=0.4,
+                       help='check beishu')
+    parser.add_argument('--max_beishu',
+                        type=float,
+                        default=0.75,
+                        help='max prune rate beishu')
     parser.add_argument('--dataset',
                         type=str,
                         default=None,
